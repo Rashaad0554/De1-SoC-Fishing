@@ -13,6 +13,18 @@ void plot_pixel(int x, int y, short int line_color);
 void swap(int *a, int *b);
 void wait_for_vsync();
 void playVictoryNoise();
+void erase_pbar(int pbarX, int pbarY, int pbarWidth, int pbarHeight);
+void erase_net(int netX, int netY, int netWidth, int netHeight);
+void plot_score(int score, int pbarCol);
+void plot_pbar(int pbarX, int pbarY, int pbarWidth, int pbarHeight, int pbarCol);
+void plot_net(int netX, int netY, int netWidth, int netHeight, int netCol);
+void plot_box(int boxX, int boxY, int boxWidth, int boxHeight, int boxCol);
+void erase_image_fish(int x, int y);
+void plot_image_fish(int x, int y);
+void erase_image_start();
+void plot_image_start();
+void erase_image_fishing_background();
+void plot_image_fishing_background();
 
 void keyboard();
 void HEX_PS2(char, char,char);
@@ -50,15 +62,15 @@ int main(void)
 	boxY = 10;
 	boxWidth = 50;
 	boxHeight = 200;
-	fishX = 65;
-	fishY = 100;
-	fishWidth = 20;
-	fishHeight = 30;
-	netWidth = 30;
-	netHeight = 60;
-	netX = 60;
+	netWidth = 16;
+	netHeight = 50;
+	netX = boxX + boxWidth/2 - netWidth/2;
 	netY = 70;
 	netDeltaY = 10;
+	fishWidth = 16;
+	fishHeight = 16;
+	fishX = netX + netWidth/2 - fishWidth/2;
+	fishY = 100;
 	
 	
 	srand(rand()%5 + 1);
@@ -89,6 +101,7 @@ int main(void)
     
     // PS/2 mouse needs to be reset (must be already plugged in)
     *(PS2_ptr) = 0xFF; // reset
+	
 	for(int i = 0 ; i < 396 ; i++){
 				playVictoryNoise();
 			}
@@ -104,9 +117,9 @@ int main(void)
             byte1 = byte2;
             byte2 = byte3;
             byte3 = PS2_data & 0xFF;
-			if (byte3 == byte2)
+            if (byte3 == byte2)
             {
-                PS2_data =(PS2_ptr);
+                PS2_data = *(PS2_ptr);
             }
 
             HEX_PS2(byte1, byte2, byte3);
@@ -114,56 +127,37 @@ int main(void)
         }
         /* Erase any boxes and lines that were drawn in the last iteration */
         clear_screen();
+        // //draw net
+        // erase_net(netX, netY, netWidth, netHeight);
+        
+        // //draw fish
+        // erase_image_fish(fishX, fishY);
+        
+        // //draw pbar
+        // erase_pbar(pbarX, pbarY, pbarWidth, pbarHeight);
         
         if(gamestate == 0){
-            plot_image_start();
-            if(byte2 == 0x29 && byte3 == 0x29){
+            if(byte3 == 0x29 && byte2 == 0xF0){
                 gamestate = 1;
             }
+            plot_image_start();
         }
 		
         else if(gamestate == 1){
+            plot_image_fishing_background();
             //draw box
-            for (int w = boxY; w < boxY + boxHeight; w++)
-                {
-                    for (int h = boxX; h < boxX + boxWidth; h++)
-                    {
-                        plot_pixel(h, w, boxCol);
-                    }
-                }
-            
+            plot_box(boxX, boxY, boxWidth, boxHeight, boxCol);
             //draw net
-            for(int h = netY ; h < netY + netHeight ; h++){
-                for(int w = netX ; w < netX + netWidth ; w++){
-                    plot_pixel(w,h,netCol);
-                }
-            }
-            
+            plot_net(netX, netY, netWidth, netHeight, netCol);
             
             //draw fish
-            for (int w = fishY; w < fishY + fishHeight; w++)
-                {
-                    for (int h = fishX; h < fishX + fishWidth; h++)
-                    {
-                        plot_pixel(h, w, fishCol);
-                    }
-                }
+            plot_image_fish(fishX, fishY);
             
             //draw pbar
-            for(int w = pbarX ; w < pbarX + pbarWidth;  w++){
-                for(int h = pbarY ; h < pbarY + pbarHeight ; h++){
-                    plot_pixel(w,h,pbarCol);
-                }
-            }
+            plot_pbar(pbarX, pbarY, pbarWidth, pbarHeight, pbarCol);
             
             //drawing score
-            for(int i = 0 ; i < score ; i++){
-                for(int w = 300 - 30*i ; w < 300 - 30*i + 10 ; w++){
-                    for(int h = 10 ; h < 20 ; h++){
-                        plot_pixel(w,h,pbarCol);
-                    }
-                }
-            }
+            plot_score(score, pbarCol);
             
             //update timer stuff
             if(timerCount == timer){
@@ -186,6 +180,9 @@ int main(void)
             }
             //updating score
             if(pbarHeight == 190){
+            	for(int i = 0 ; i < 396 ; i++){
+				playVictoryNoise();
+			}
                 score++;
                 pbarY = 200;
                 pbarHeight = 10;
@@ -220,15 +217,15 @@ int main(void)
 // VGA subroutines
 void playVictoryNoise(){	//sound effects
 	volatile int* audio_ptr = (int*) AUDIO_BASE;
-	int winFreq = 1320;
-	int winSamplePeriod = 8000 / 1320;
+	int winFreq = 4000;
+	int winSamplePeriod = 8000 / winFreq;
 	// high
 		for (int i = 0; i < winSamplePeriod/2; i++){
 				int fifospace = *(audio_ptr + 1);
 				if ((fifospace & 0x00FF0000) > 0)
 				{
-					*(audio_ptr + 2) = 16777215;
-					*(audio_ptr + 3) = 16777215;
+					*(audio_ptr + 2) = 0x7FFFFFF;
+					*(audio_ptr + 3) = 0x7FFFFFF;
 				}
 			}
 
@@ -368,14 +365,6 @@ void plot_image_fishing_background() {
     }
 }
 
-void erase_image_fishing_background() {
-    for (int i = 0; i < 240; i++) {
-        for (int j = 0; j < 320; j++) {
-            plot_pixel(j, i, 0);
-        }
-    }
-}
-
 
 void plot_image_start() {
     for (int i = 0; i < 240; i++) {
@@ -407,4 +396,63 @@ void erase_image_fish(int x, int y) {
             plot_pixel(x + j, y + i, 0);
         }
     }
+}
+
+
+//draw box
+void plot_box(int boxX, int boxY, int boxWidth, int boxHeight, int boxCol) {
+            for (int w = boxY; w < boxY + boxHeight; w++)
+                {
+                    for (int h = boxX; h < boxX + boxWidth; h++)
+                    {
+                        plot_pixel(h, w, boxCol);
+                    }
+                }
+}
+
+void plot_net(int netX, int netY, int netWidth, int netHeight, int netCol) {
+            //draw net
+            for(int h = netY ; h < netY + netHeight ; h++){
+                for(int w = netX ; w < netX + netWidth ; w++){
+                    plot_pixel(w,h,netCol);
+                }
+            }
+}
+
+void plot_pbar(int pbarX, int pbarY, int pbarWidth, int pbarHeight, int pbarCol) {
+            //draw pbar
+            for(int w = pbarX ; w < pbarX + pbarWidth;  w++){
+                for(int h = pbarY ; h < pbarY + pbarHeight ; h++){
+                    plot_pixel(w,h,pbarCol);
+                }
+            }
+}
+
+void plot_score(int score, int pbarCol) {
+            //drawing score
+            for(int i = 0; i < score; i++){
+                for(int w = 300 - 30*i ; w < 300 - 30*i + 10 ; w++){
+                    for(int h = 10 ; h < 20 ; h++){
+                        plot_pixel(w,h,pbarCol);
+                    }
+                }
+            }
+}
+
+void erase_net(int netX, int netY, int netWidth, int netHeight) {
+            //draw net
+            for(int h = netY; h < netY + netHeight; h++){
+                for(int w = netX ; w < netX + netWidth ; w++){
+                    plot_pixel(w,h,0xFFFFFF);
+                }
+            }
+}
+
+void erase_pbar(int pbarX, int pbarY, int pbarWidth, int pbarHeight) {
+            //draw pbar
+            for(int w = pbarX; w < pbarX + pbarWidth;  w++){
+                for(int h = pbarY ; h < pbarY + pbarHeight ; h++){
+                    plot_pixel(w,h,0xFFFFFF);
+                }
+            }
 }
