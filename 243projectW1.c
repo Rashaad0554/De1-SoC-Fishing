@@ -6,6 +6,7 @@
 #define HEX3_HEX0_BASE			0xFF200020
 #define HEX5_HEX4_BASE			0xFF200030
 #define AUDIO_BASE			0xFF203040
+#define LEDS_BASE			0xFF200000
 
 void draw_line(int x0, int y0, int x1, int y1, short int colour);
 void clear_screen();
@@ -38,6 +39,7 @@ short int Buffer1[240][512]; // 240 rows, 512 (320 + padding) columns
 short int Buffer2[240][512];
 //global variables
 volatile int * PS2_ptr = (int *)PS2_BASE;
+volatile int * LED_ptr = (int *)LEDS_BASE;
 int PS2_data, RVALID;
 char byte1 = 0, byte2 = 0, byte3 = 0;
 
@@ -61,10 +63,6 @@ int main(void)
 
     
     //set starting locations for box and fish and net and progress bar (pbar)
-    pbarX = 110;
-    pbarY = 200;
-    pbarWidth = 10;
-    pbarHeight = 10;
     boxX = 50;
     boxY = 10;
     boxWidth = 50;
@@ -78,6 +76,12 @@ int main(void)
     fishHeight = 16;
     fishX = netX + netWidth/2 - fishWidth/2;
     fishY = 100;
+    pbarWidth = 10;
+    pbarHeight = 10;
+    pbarX = boxX + boxWidth - pbarWidth;
+    pbarY = boxY + boxHeight- pbarHeight;
+    int pbarChange = 2;
+
     
     //scoreboard
     int scoreWidth = 80;
@@ -109,20 +113,34 @@ int main(void)
     
     // PS/2 mouse needs to be reset (must be already plugged in)
     *(PS2_ptr) = 0xFF; // reset
+
+    while(byte3 != 0x29 || byte2 != 0xF0){
+        getKeyboardInput(PS2_ptr);
+        plot_image_start();
+        wait_for_vsync(); // swap front and back buffers on VGA vertical sync
+        pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
+    }
+
+    //get rid of start screen and plot permanent stuff for when game is in play
+    gamestate = 1;
+    for(int drawIndex = 0 ; drawIndex < 2 ; drawIndex++){
+        erase_image_start();
+        plot_image_fishing_background();
+        for(int w = scoreX ; w < scoreX + scoreWidth ; w++){
+            for(int h = scoreY ; h < scoreY + scoreHeight ; h++){
+                plot_pixel(w, h, scoreColor);
+            }
+        }
+        plot_image_fish(scoreX + 10, scoreY+10);
+        wait_for_vsync(); // swap front and back buffers on VGA vertical sync
+        pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
+    }
     
     while (1)
     {
         getKeyboardInput(PS2_ptr);
         
-        if(gamestate == 0){
-            if(byte3 == 0x29 && byte2 == 0xF0){
-                gamestate = 1;
-            }
-            plot_image_start();
-        }
-        
-        else if(gamestate == 1){
-            plot_image_fishing_background();
+        if(gamestate == 1){
             //draw box
             plot_box(boxX, boxY, boxWidth, boxHeight, boxCol);
             //draw net
@@ -145,25 +163,19 @@ int main(void)
             }
             //checking if fish is within net
             if(fishY + fishHeight > netY && fishY < netY + netHeight){
-                if(pbarY > 10){	
-                    pbarY -= 2;
-                    pbarHeight += 2;
-                }
+                pbarChange = -2;
             }
             else{
-                if(pbarY < 200){
-                    pbarY +=1;
-                    pbarHeight -=1;
-                }
+                pbarChange  = 1;
             }
             //updating score
-            if(pbarHeight == 190){
+            if(pbarY < boxY + 10){
                 for(int i = 0 ; i < 396 ; i++){
                     playVictoryNoise();
                 }
                 score++;
-                pbarY = 200;
                 pbarHeight = 10;
+                pbarY = boxY + boxHeight - pbarHeight;
                 diffI = rand()%7;
             }
 
@@ -182,6 +194,10 @@ int main(void)
             if(netY + netDeltaY > boxY && netY+netDeltaY+netHeight < boxY + boxHeight){	
                 netY += netDeltaY;
             }
+            if(pbarY + pbarChange >= boxY && pbarY + pbarHeight <= boxY + boxHeight){
+                pbarY += pbarChange;
+                pbarHeight -= pbarChange;
+            }
 
             // update fish location
             fishY += fishDeltaY;
@@ -194,8 +210,8 @@ int main(void)
         
         // //draw fish
         erase_image_fish(fishX, fishY);
-        
-        // //draw pbar
+
+        //draw pbar
         erase_pbar(pbarX, pbarY, pbarWidth, pbarHeight);
     }
 }
