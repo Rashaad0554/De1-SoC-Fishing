@@ -25,6 +25,7 @@ void erase_image_start();
 void plot_image_start();
 void erase_image_fishing_background();
 void plot_image_fishing_background();
+void getKeyboardInput(volatile int *PS2_ptr);
 
 void keyboard();
 void HEX_PS2(char, char,char);
@@ -32,7 +33,10 @@ void HEX_PS2(char, char,char);
 volatile int pixel_buffer_start; // global variable
 short int Buffer1[240][512]; // 240 rows, 512 (320 + padding) columns
 short int Buffer2[240][512];
-
+//global variables
+volatile int * PS2_ptr = (int *)PS2_BASE;
+int PS2_data, RVALID;
+char byte1 = 0, byte2 = 0, byte3 = 0;
 
 int main(void)
 {
@@ -93,48 +97,13 @@ int main(void)
     *(pixel_ctrl_ptr + 1) = (int) &Buffer2;
     pixel_buffer_start = *(pixel_ctrl_ptr + 1); // we draw on the back buffer
     clear_screen(); // pixel_buffer_start points to the pixel buffer
-	
-	volatile int * PS2_ptr = (int *)PS2_BASE;
-    
-    int PS2_data, RVALID;
-    char byte1 = 0, byte2 = 0, byte3 = 0;
     
     // PS/2 mouse needs to be reset (must be already plugged in)
     *(PS2_ptr) = 0xFF; // reset
 	
-	for(int i = 0 ; i < 396 ; i++){
-				playVictoryNoise();
-			}
-	
-	
     while (1)
     {
-        PS2_data = *(PS2_ptr); // read the Data register in the PS/2 port
-        RVALID = PS2_data & 0x8000; // extract the RVALID field
-		int RAVAIL = PS2_data & 0xFFFF0000;
-        if (RVALID) {
-            /* shift the next data byte into the display */
-            byte1 = byte2;
-            byte2 = byte3;
-            byte3 = PS2_data & 0xFF;
-            if (byte3 == byte2)
-            {
-                PS2_data = *(PS2_ptr);
-            }
-
-            HEX_PS2(byte1, byte2, byte3);
-
-        }
-        /* Erase any boxes and lines that were drawn in the last iteration */
-        clear_screen();
-        // //draw net
-        // erase_net(netX, netY, netWidth, netHeight);
-        
-        // //draw fish
-        // erase_image_fish(fishX, fishY);
-        
-        // //draw pbar
-        // erase_pbar(pbarX, pbarY, pbarWidth, pbarHeight);
+		getKeyboardInput(PS2_ptr);
         
         if(gamestate == 0){
             if(byte3 == 0x29 && byte2 == 0xF0){
@@ -181,8 +150,8 @@ int main(void)
             //updating score
             if(pbarHeight == 190){
             	for(int i = 0 ; i < 396 ; i++){
-				playVictoryNoise();
-			}
+					playVictoryNoise();
+				}
                 score++;
                 pbarY = 200;
                 pbarHeight = 10;
@@ -196,10 +165,10 @@ int main(void)
 
             //update net location
             if (byte2 == 0x29 && byte3 == 0x29) {
-                netDeltaY= -13;
+                netDeltaY= -7;
             }
             else {
-                netDeltaY = 10;
+                netDeltaY = 5;
             }
             if(netY + netDeltaY > boxY && netY+netDeltaY+netHeight < boxY + boxHeight){	
                 netY += netDeltaY;
@@ -211,6 +180,14 @@ int main(void)
         }
         wait_for_vsync(); // swap front and back buffers on VGA vertical sync
         pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
+        // //draw net
+        erase_net(netX, netY, netWidth, netHeight);
+        
+        // //draw fish
+        erase_image_fish(fishX, fishY);
+        
+        // //draw pbar
+        erase_pbar(pbarX, pbarY, pbarWidth, pbarHeight);
     }
 }
 
@@ -220,24 +197,41 @@ void playVictoryNoise(){	//sound effects
 	int winFreq = 4000;
 	int winSamplePeriod = 8000 / winFreq;
 	// high
-		for (int i = 0; i < winSamplePeriod/2; i++){
-				int fifospace = *(audio_ptr + 1);
-				if ((fifospace & 0x00FF0000) > 0)
-				{
-					*(audio_ptr + 2) = 0x7FFFFFF;
-					*(audio_ptr + 3) = 0x7FFFFFF;
-				}
-			}
+	for (int i = 0; i < winSamplePeriod/2; i++){
+		int fifospace = *(audio_ptr + 1);
+		if ((fifospace & 0x00FF0000) > 0)
+		{
+			*(audio_ptr + 2) = 0x7FFFFFF;
+			*(audio_ptr + 3) = 0x7FFFFFF;
+		}
+	}
 
-		 // low
-    	 for (int j = 0; j < winSamplePeriod/2; j++){
-            int fifospace = *(audio_ptr + 1);
-            if ((fifospace & 0x00FF0000) > 0)
-            {
-                *(audio_ptr + 2) = 0;
-                *(audio_ptr + 3) = 0;
-            }
-        }
+	// low
+    for (int j = 0; j < winSamplePeriod/2; j++){
+        int fifospace = *(audio_ptr + 1);
+        if((fifospace & 0x00FF0000) > 0)
+		{
+        	*(audio_ptr + 2) = 0;
+			*(audio_ptr + 3) = 0;
+		}
+	}
+}
+
+void getKeyboardInput(volatile int *PS2_ptr){
+	int PS2_data = *(PS2_ptr); // read the Data register in the PS/2 port
+	RVALID = PS2_data & 0x8000; // extract the RVALID field
+	if (RVALID) {
+		/* shift the next data byte into the display */
+		byte1 = byte2;
+		byte2 = byte3;
+		byte3 = PS2_data & 0xFF;
+		if (byte3 == byte2)
+		{
+			PS2_data = *(PS2_ptr);
+		}
+
+		HEX_PS2(byte1, byte2, byte3);
+	}
 }
 void plot_pixel(int x, int y, short int line_color)
 {
@@ -307,6 +301,7 @@ void swap(int *a, int *b)
 
 void wait_for_vsync()
 {
+	getKeyboardInput(PS2_ptr);
     volatile int * pixel_ctrl_ptr = (int *)PIXEL_BUF_CTRL_BASE; // base address
     int status;
     *pixel_ctrl_ptr = 1; // start the synchronization process
@@ -316,11 +311,6 @@ void wait_for_vsync()
     {
         status = *(pixel_ctrl_ptr + 3);
     } // polling loop/function exits when status bit goes to 0
-}
-
-// PS/2 subroutines
-void keyboard() {
-    
 }
 
 // just to test keyboard()
