@@ -14,6 +14,7 @@ void plot_pixel(int x, int y, short int line_color);
 void swap(int *a, int *b);
 void wait_for_vsync();
 void playVictoryNoise();
+void playLossNoise();
 void erase_pbar(int pbarX, int pbarY, int pbarWidth, int pbarHeight);
 void erase_net(int netX, int netY, int netWidth, int netHeight);
 void plot_score(int score, int pbarCol);
@@ -77,7 +78,7 @@ int main(void)
     fishX = netX + netWidth/2 - fishWidth/2;
     fishY = 100;
     pbarWidth = 10;
-    pbarHeight = 10;
+    pbarHeight = 45;
     pbarX = boxX + boxWidth - pbarWidth;
     pbarY = boxY + boxHeight- pbarHeight;
     int pbarChange = 2;
@@ -174,10 +175,23 @@ int main(void)
                     playVictoryNoise();
                 }
                 score++;
-                pbarHeight = 10;
+				netY = 70;
+				fishY = 100;
+                pbarHeight = 45;
                 pbarY = boxY + boxHeight - pbarHeight;
                 diffI = rand()%7;
-            }
+            } else if (pbarHeight < 1) {
+				for(int i = 0 ; i < 30 ; i++){
+                    playLossNoise();
+                }
+				score = 0;
+				netY = 70;
+				fishY = 100;
+                pbarHeight = 45;
+                pbarY = boxY + boxHeight - pbarHeight;
+                diffI = rand()%7;
+            } 
+				
 
             // code for updating the locations of boxes (not shown)
             if(fishY+fishDeltaY <= boxY || fishY+fishDeltaY+fishHeight >= boxY + boxHeight){
@@ -233,6 +247,31 @@ void playVictoryNoise(){	//sound effects
 
     // low
     for (int j = 0; j < winSamplePeriod/2; j++){
+        int fifospace = *(audio_ptr + 1);
+        if((fifospace & 0x00FF0000) > 0)
+        {
+            *(audio_ptr + 2) = 0;
+            *(audio_ptr + 3) = 0;
+        }
+    }
+}
+
+void playLossNoise(){	//sound effects
+    volatile int* audio_ptr = (int*) AUDIO_BASE;
+    int lossFreq = 200;
+    int lossSamplePeriod = 8000 / lossFreq;
+    // high
+    for (int i = 0; i < lossSamplePeriod/2; i++){
+        int fifospace = *(audio_ptr + 1);
+        if ((fifospace & 0x00FF0000) > 0)
+        {
+            *(audio_ptr + 2) = 0x7FFFFFF;
+            *(audio_ptr + 3) = 0x7FFFFFF;
+        }
+    }
+
+    // low
+    for (int j = 0; j < lossSamplePeriod/2; j++){
         int fifospace = *(audio_ptr + 1);
         if((fifospace & 0x00FF0000) > 0)
         {
