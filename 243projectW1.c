@@ -96,8 +96,8 @@ int main(void)
     int scoreColor = 0xffffff; //white
     
     srand(rand()%5 + 1);
-    int timerDiff[7] = {1, 3, 5, 5, 5, 7, 7};
-    int stepDiff[7] = {9, 9, 6, 6, 6, 4, 4};
+    int timerDiff[7] = {1, 5, 5, 6, 7, 7, 7}; // time b/w jumps
+    int stepDiff[7] = {9, 9, 6, 5, 4, 4, 4}; // distance of jumps
     int diffI = rand()%7;
     int timeAdjust = timerDiff[diffI];
     //set starting direction for fish
@@ -174,7 +174,14 @@ int main(void)
                 pbarChange = -2;
             }
             else{
-                pbarChange  = 1;
+                if (pbarHeight > 120) {
+                	pbarChange  = 3;
+                } else if (pbarHeight > 60) {
+                	pbarChange = 2;
+                }
+                else {
+                	pbarChange = 1;
+                }
             }
             //updating score
             if(pbarY < boxY + 10){
@@ -188,7 +195,7 @@ int main(void)
                 pbarY = boxY + boxHeight - pbarHeight;
                 diffI = rand()%7;
             } else if (pbarHeight < 1) {
-				for(int i = 0 ; i < 30 ; i++){
+				for(int i = 0 ; i < 120 ; i++){
                     playLossNoise();
                 }
                 // reset game variables to start fresh
@@ -271,7 +278,7 @@ void playVictoryNoise(){	//sound effects
 
 void playLossNoise(){	//sound effects
     volatile int* audio_ptr = (int*) AUDIO_BASE;
-    int lossFreq = 200;
+    int lossFreq = 300;
     int lossSamplePeriod = 8000 / lossFreq;
     // high
     for (int i = 0; i < lossSamplePeriod/2; i++){
